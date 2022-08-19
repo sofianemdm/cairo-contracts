@@ -1,15 +1,43 @@
-# SPDX-License-Identifier: MIT
-# OpenZeppelin Contracts for Cairo v0.3.1 (token/erc721/enumerable/presets/ERC721EnumerableMintableBurnable.cairo)
-
 %lang starknet
+%builtins pedersen range_check ecdsa
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin
+from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.cairo.common.uint256 import Uint256
 
-from openzeppelin.access.ownable.library import Ownable
-from openzeppelin.introspection.erc165.library import ERC165
-from openzeppelin.token.erc721.library import ERC721
-from openzeppelin.token.erc721.enumerable.library import ERC721Enumerable
+from contracts.token.ERC721.ERC721_base import (
+    ERC721_name,
+    ERC721_symbol,
+    ERC721_balanceOf,
+    ERC721_ownerOf,
+    ERC721_getApproved,
+    ERC721_isApprovedForAll,
+    ERC721_mint,
+    ERC721_burn,
+
+    ERC721_initializer,
+    ERC721_approve,
+    ERC721_setApprovalForAll,
+    ERC721_transferFrom,
+    ERC721_safeTransferFrom
+)
+
+from contracts.token.ERC721.ERC721_Metadata_base import (
+    ERC721_Metadata_initializer,
+    ERC721_Metadata_tokenURI,
+    ERC721_Metadata_setBaseTokenURI,
+)
+
+from contracts.token.ERC721.ERC165_base import (
+    ERC165_supports_interface
+)
+
+from contracts.utils.Ownable_base import (
+    Ownable_initializer,
+    Ownable_only_owner,
+    Ownable_get_owner,
+    Ownable_transfer_ownership
+)
+
 
 #
 # Constructor
@@ -20,14 +48,11 @@ func constructor{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(
-        name: felt,
-        symbol: felt,
-        owner: felt
-    ):
-    ERC721.initializer(name, symbol)
-    ERC721Enumerable.initializer()
-    Ownable.initializer(owner)
+    }(name: felt, symbol: felt, owner: felt, base_token_uri_len: felt, base_token_uri: felt*, token_uri_suffix: felt):
+    ERC721_initializer(name, symbol)
+    ERC721_Metadata_initializer()
+    Ownable_initializer(owner)
+    ERC721_Metadata_setBaseTokenURI(base_token_uri_len, base_token_uri, token_uri_suffix)
     return ()
 end
 
@@ -36,33 +61,13 @@ end
 #
 
 @view
-func totalSupply{
-        pedersen_ptr: HashBuiltin*,
-        syscall_ptr: felt*,
+func getOwner{
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }() -> (totalSupply: Uint256):
-    let (totalSupply: Uint256) = ERC721Enumerable.total_supply()
-    return (totalSupply)
-end
-
-@view
-func tokenByIndex{
-        pedersen_ptr: HashBuiltin*,
-        syscall_ptr: felt*,
-        range_check_ptr
-    }(index: Uint256) -> (tokenId: Uint256):
-    let (tokenId: Uint256) = ERC721Enumerable.token_by_index(index)
-    return (tokenId)
-end
-
-@view
-func tokenOfOwnerByIndex{
-        pedersen_ptr: HashBuiltin*,
-        syscall_ptr: felt*,
-        range_check_ptr
-    }(owner: felt, index: Uint256) -> (tokenId: Uint256):
-    let (tokenId: Uint256) = ERC721Enumerable.token_of_owner_by_index(owner, index)
-    return (tokenId)
+    }() -> (owner: felt):
+    let (owner) = Ownable_get_owner()
+    return (owner=owner)
 end
 
 @view
@@ -70,8 +75,8 @@ func supportsInterface{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(interfaceId: felt) -> (success: felt):
-    let (success) = ERC165.supports_interface(interfaceId)
+    }(interface_id: felt) -> (success: felt):
+    let (success) = ERC165_supports_interface(interface_id)
     return (success)
 end
 
@@ -81,7 +86,7 @@ func name{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }() -> (name: felt):
-    let (name) = ERC721.name()
+    let (name) = ERC721_name()
     return (name)
 end
 
@@ -91,7 +96,7 @@ func symbol{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }() -> (symbol: felt):
-    let (symbol) = ERC721.symbol()
+    let (symbol) = ERC721_symbol()
     return (symbol)
 end
 
@@ -101,7 +106,7 @@ func balanceOf{
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
     }(owner: felt) -> (balance: Uint256):
-    let (balance: Uint256) = ERC721.balance_of(owner)
+    let (balance: Uint256) = ERC721_balanceOf(owner)
     return (balance)
 end
 
@@ -110,8 +115,8 @@ func ownerOf{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(tokenId: Uint256) -> (owner: felt):
-    let (owner: felt) = ERC721.owner_of(tokenId)
+    }(token_id: Uint256) -> (owner: felt):
+    let (owner: felt) = ERC721_ownerOf(token_id)
     return (owner)
 end
 
@@ -120,8 +125,8 @@ func getApproved{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(tokenId: Uint256) -> (approved: felt):
-    let (approved: felt) = ERC721.get_approved(tokenId)
+    }(token_id: Uint256) -> (approved: felt):
+    let (approved: felt) = ERC721_getApproved(token_id)
     return (approved)
 end
 
@@ -130,9 +135,9 @@ func isApprovedForAll{
         syscall_ptr : felt*,
         pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(owner: felt, operator: felt) -> (isApproved: felt):
-    let (isApproved: felt) = ERC721.is_approved_for_all(owner, operator)
-    return (isApproved)
+    }(owner: felt, operator: felt) -> (is_approved: felt):
+    let (is_approved: felt) = ERC721_isApprovedForAll(owner, operator)
+    return (is_approved)
 end
 
 @view
@@ -140,19 +145,9 @@ func tokenURI{
         syscall_ptr: felt*,
         pedersen_ptr: HashBuiltin*,
         range_check_ptr
-    }(tokenId: Uint256) -> (tokenURI: felt):
-    let (tokenURI: felt) = ERC721.token_uri(tokenId)
-    return (tokenURI)
-end
-
-@view
-func owner{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (owner: felt):
-    let (owner: felt) = Ownable.owner()
-    return (owner)
+    }(token_id: Uint256) -> (token_uri_len: felt, token_uri: felt*):
+    let (token_uri_len, token_uri) = ERC721_Metadata_tokenURI(token_id)
+    return (token_uri_len=token_uri_len, token_uri=token_uri)
 end
 
 #
@@ -164,8 +159,8 @@ func approve{
         pedersen_ptr: HashBuiltin*,
         syscall_ptr: felt*,
         range_check_ptr
-    }(to: felt, tokenId: Uint256):
-    ERC721.approve(to, tokenId)
+    }(to: felt, token_id: Uint256):
+    ERC721_approve(to, token_id)
     return ()
 end
 
@@ -175,7 +170,7 @@ func setApprovalForAll{
         pedersen_ptr: HashBuiltin*,
         range_check_ptr
     }(operator: felt, approved: felt):
-    ERC721.set_approval_for_all(operator, approved)
+    ERC721_setApprovalForAll(operator, approved)
     return ()
 end
 
@@ -184,12 +179,8 @@ func transferFrom{
         pedersen_ptr: HashBuiltin*,
         syscall_ptr: felt*,
         range_check_ptr
-    }(
-        from_: felt,
-        to: felt,
-        tokenId: Uint256
-    ):
-    ERC721Enumerable.transfer_from(from_, to, tokenId)
+    }(_from: felt, to: felt, token_id: Uint256):
+    ERC721_transferFrom(_from, to, token_id)
     return ()
 end
 
@@ -199,35 +190,13 @@ func safeTransferFrom{
         syscall_ptr: felt*,
         range_check_ptr
     }(
-        from_: felt,
+        _from: felt,
         to: felt,
-        tokenId: Uint256,
+        token_id: Uint256,
         data_len: felt,
         data: felt*
     ):
-    ERC721Enumerable.safe_transfer_from(from_, to, tokenId, data_len, data)
-    return ()
-end
-
-@external
-func mint{
-        pedersen_ptr: HashBuiltin*,
-        syscall_ptr: felt*,
-        range_check_ptr
-    }(to: felt, tokenId: Uint256):
-    Ownable.assert_only_owner()
-    ERC721Enumerable._mint(to, tokenId)
-    return ()
-end
-
-@external
-func burn{
-        pedersen_ptr: HashBuiltin*,
-        syscall_ptr: felt*,
-        range_check_ptr
-    }(tokenId: Uint256):
-    ERC721.assert_only_token_owner(tokenId)
-    ERC721Enumerable._burn(tokenId)
+    ERC721_safeTransferFrom(_from, to, token_id, data_len, data)
     return ()
 end
 
@@ -236,28 +205,41 @@ func setTokenURI{
         pedersen_ptr: HashBuiltin*,
         syscall_ptr: felt*,
         range_check_ptr
-    }(tokenId: Uint256, tokenURI: felt):
-    Ownable.assert_only_owner()
-    ERC721._set_token_uri(tokenId, tokenURI)
+    }(base_token_uri_len: felt, base_token_uri: felt*, token_uri_suffix: felt):
+    Ownable_only_owner()
+    ERC721_Metadata_setBaseTokenURI(base_token_uri_len, base_token_uri, token_uri_suffix)
+    return ()
+end
+
+@external
+func mint{
+        pedersen_ptr: HashBuiltin*,
+        syscall_ptr: felt*,
+        range_check_ptr
+    }(to: felt, token_id: Uint256):
+    Ownable_only_owner()
+    ERC721_mint(to, token_id)
+    return ()
+end
+
+@external
+func burn{
+        pedersen_ptr: HashBuiltin*,
+        syscall_ptr: felt*,
+        range_check_ptr
+    }(token_id: Uint256):
+    Ownable_only_owner()
+    ERC721_burn(token_id)
     return ()
 end
 
 @external
 func transferOwnership{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
+        syscall_ptr : felt*,
+        pedersen_ptr : HashBuiltin*,
         range_check_ptr
-    }(newOwner: felt):
-    Ownable.transfer_ownership(newOwner)
-    return ()
-end
-
-@external
-func renounceOwnership{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }():
-    Ownable.renounce_ownership()
-    return ()
+    }(new_owner: felt) -> (new_owner: felt):
+    # Ownership check is handled by this function
+    Ownable_transfer_ownership(new_owner)
+    return (new_owner=new_owner)
 end
